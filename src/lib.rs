@@ -19,6 +19,8 @@ pub(crate) use ark_std::{borrow::ToOwned, boxed::Box, vec::Vec};
 
 pub mod commitment;
 pub mod crh;
+pub mod encryption;
+pub mod kdf;
 pub mod merkle_tree;
 pub mod prf;
 pub mod signature;
