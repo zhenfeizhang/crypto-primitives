@@ -2,7 +2,7 @@
 //! of ISO/IEC 18033-2 <https://www.shoup.net/iso/std4.pdf>.
 //! The concrete methods are recalled as follows:
 //! 1. System parameters.
-//!     KDF1 is a family of key derivation functions, parameterized a Hash function
+//!     KDF is a family of key derivation functions, parameterized by a Hash function
 //! 2. Specification.
 //!     For an octet string `x` and a non-negative integer `l`, `KDF(x, l)` is defined to be the
 //!     first `l` octets of
@@ -51,15 +51,24 @@ impl<H: FixedLengthCRH> KDF for ISOKDF<H> {
             return Err(format!("Input len ({}) exceed the hash capacity", input.len()).into());
         }
 
-        let mut k = 0;
+        // k is a u32 as per spec
+        // if `k > 2^32` then rust will overflow to 0; and we return an error
+        let mut k = 0u32;
         let mut res: Vec<u8> = vec![];
         while res.len() < output_len {
-            // compute `Hash(input | I2OSP (k, 4))` and
-            // append it to the result
-            Self::Hash::evaluate(&param, &[input, &i2osp(k as u32, 4)?].concat())?
+            // compute `Hash(input | I2OSP (k, 4))` and append it to the result
+            Self::Hash::evaluate(&param, &[input, &i2osp(k, 4)?].concat())?
                 .write(&mut res)
                 .unwrap();
-            k += 1;
+
+
+            if k == u32::MAX {
+                // `k == 2^32`; we need to return an error
+                return Err(format!("Iteration k ({}) exceed the capacity", k ).into());
+            } else {
+                k += 1;
+            }
+
         }
 
         Ok(res[0..output_len].to_vec())
@@ -88,7 +97,7 @@ mod test {
 
     #[test]
     fn pedersen_kdf_test() {
-        use crate::{crh::pedersen::Window, crh::pedersen};
+        use crate::{crh::pedersen, crh::pedersen::Window};
 
         const PERDERSON_WINDOW_SIZE: usize = 4;
         const PERDERSON_WINDOW_NUM: usize = 256;
